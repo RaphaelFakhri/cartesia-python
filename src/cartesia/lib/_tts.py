@@ -42,6 +42,12 @@ if TYPE_CHECKING:
     from .._client import Cartesia, AsyncCartesia
 
 
+def _is_closed(connection: Any) -> bool:
+    from websockets.protocol import State
+
+    return bool(connection.state in (State.CLOSED, State.CLOSING))
+
+
 class AsyncTTSResourceConnection:
     """Represents a live WebSocket connection to the TTS API"""
 
@@ -280,7 +286,7 @@ class AsyncTTSResourceConnectionManager:
         ```
         """
         async with self.__lock:
-            if self.__connection is not None:
+            if self.__connection is not None and not _is_closed(self.__connection._connection):
                 return self.__connection
 
             try:
@@ -511,7 +517,7 @@ class TTSResourceConnectionManager:
         connection.close()
         ```
         """
-        if self.__connection is not None:
+        if self.__connection is not None and not _is_closed(self.__connection._connection):
             return self.__connection
 
         try:
