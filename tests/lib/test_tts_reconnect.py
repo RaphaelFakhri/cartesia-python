@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import asyncio
 import threading
@@ -15,6 +16,7 @@ class _Server:
     def __init__(self) -> None:
         self.connections: list[ServerConnection] = []
         self.received: list[str] = []
+        self.reply = False
         self._server = serve(self._handle, "127.0.0.1", 0)
         self.url = f"ws://127.0.0.1:{self._server.socket.getsockname()[1]}"
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
@@ -24,6 +26,9 @@ class _Server:
         try:
             for message in ws:
                 self.received.append(str(message))
+                context_id = json.loads(message).get("context_id")
+                if self.reply and context_id is not None:
+                    ws.send(json.dumps({"type": "done", "context_id": context_id, "done": True}))
         except Exception:
             pass
 
@@ -72,3 +77,19 @@ async def test_async_tts_send_reconnects_after_server_closes_connection(server: 
 
         server.wait_for(2)
         assert len(server.connections) == 2
+
+
+async def test_async_context_receives_after_reconnect(server: _Server) -> None:
+    server.reply = True
+    client = AsyncCartesia(api_key="key", websocket_base_url=server.url)
+
+    async with client.tts.websocket_connect() as connection:
+        server.wait_for(1)
+        context = connection.context()
+        await asyncio.to_thread(server.connections[0].close)
+        await asyncio.sleep(0.2)
+
+        await context.send(transcript="hello", voice={"mode": "id", "id": "voice"})
+
+        events = [event async for event in context.receive()]
+        assert [event.type for event in events] == ["done"]

@@ -165,7 +165,6 @@ class AsyncTTSResourceConnection:
                 self._processing_task = None
             new_conn = await self._manager.__aenter__()
             self._connection = new_conn._connection
-            self._context_queues.clear()
 
     def parse_event(self, data: Union[str, bytes]) -> WebsocketResponse:
         """
@@ -400,7 +399,6 @@ class TTSResourceConnection:
             self._logger.debug("Connection is not open (state=%s), reconnecting...", self._connection.state)
             new_conn = self._manager.__enter__()
             self._connection = new_conn._connection
-            self._context_queues.clear()
 
     def parse_event(self, data: Union[str, bytes]) -> WebsocketResponse:
         """
